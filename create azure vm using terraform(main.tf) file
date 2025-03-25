@@ -1,0 +1,144 @@
+
+provider "azurerm" {
+  features {}
+
+  # Authentication details for Azure
+  subscription_id = "38bd44d5-d91c-4f34-8f1e-c946d6697ae4"
+  tenant_id       = "d0f66b2a-6d50-4e11-b7a6-e0fe38d06609"
+  client_id       = "da491486-a859-4cfd-b6cc-e5562cac1eb6"
+  client_secret   = "QaL8Q~Bqjq51dH65vofv5UmRdvuynEurQAtlPcAr"
+}
+
+# Resource Group Definition
+resource "azurerm_resource_group" "vikram" {
+  name     = "vikram"
+  location = "East US"
+}
+
+# Virtual Network Definition
+resource "azurerm_virtual_network" "vikram_vnet" {
+  name                = "vikram-vnet"
+  location            = azurerm_resource_group.vikram.location
+  resource_group_name = azurerm_resource_group.vikram.name
+  address_space       = ["10.0.0.0/16"]
+}
+
+# Subnet Definition
+resource "azurerm_subnet" "vikram_subnet" {
+  name                 = "default"
+  resource_group_name  = azurerm_resource_group.vikram.name
+  virtual_network_name = azurerm_virtual_network.vikram_vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+# Public IP for Master VM
+resource "azurerm_public_ip" "vikram_master_public_ip" {
+  name                         = "vikram-master-ip"
+  location                     = azurerm_resource_group.vikram.location
+  resource_group_name          = azurerm_resource_group.vikram.name
+  allocation_method            = "Static"
+  sku                          = "Basic"
+}
+
+# Public IP for Slave VM
+resource "azurerm_public_ip" "vikram_slave_public_ip" {
+  name                         = "vikram-slave-ip"
+  location                     = azurerm_resource_group.vikram.location
+  resource_group_name          = azurerm_resource_group.vikram.name
+  allocation_method            = "Static"
+  sku                          = "Basic"
+}
+
+
+# Network Interface for Master VM
+resource "azurerm_network_interface" "vikram_master_nic" {
+  name                = "vikram-master-nic"
+  location            = azurerm_resource_group.vikram.location
+  resource_group_name = azurerm_resource_group.vikram.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                    = azurerm_subnet.vikram_subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id         = azurerm_public_ip.vikram_master_public_ip.id
+  }
+}
+
+# Network Interface for Slave VM
+resource "azurerm_network_interface" "vikram_slave_nic" {
+  name                = "vikram-slave-nic"
+  location            = azurerm_resource_group.vikram.location
+  resource_group_name = azurerm_resource_group.vikram.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                    = azurerm_subnet.vikram_subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id         = azurerm_public_ip.vikram_slave_public_ip.id
+  }
+}
+
+# Virtual Machine for Master
+resource "azurerm_virtual_machine" "vikram_master" {
+  name                  = "vikram-master"
+  location              = azurerm_resource_group.vikram.location
+  resource_group_name   = azurerm_resource_group.vikram.name
+  network_interface_ids = [azurerm_network_interface.vikram_master_nic.id]
+  vm_size               = "Standard_B1s"
+
+  storage_os_disk {
+    name          = "vikram-master-osdisk"
+    caching       = "ReadWrite"
+    create_option = "FromImage"
+  }
+
+  storage_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_profile {
+    computer_name  = "vikram-master"
+    admin_username = "adminuser"
+    admin_password = "Password1234!"
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+}
+
+# Virtual Machine for Slave
+resource "azurerm_virtual_machine" "vikram_slave" {
+  name                  = "vikram-slave"
+  location              = azurerm_resource_group.vikram.location
+  resource_group_name   = azurerm_resource_group.vikram.name
+  network_interface_ids = [azurerm_network_interface.vikram_slave_nic.id]
+  vm_size               = "Standard_B1s"
+
+
+  storage_os_disk {
+    name          = "vikram-slave-osdisk"
+    caching       = "ReadWrite"
+    create_option = "FromImage"
+  }
+
+  storage_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_profile {
+    computer_name  = "vikram-slave"
+    admin_username = "adminuser"
+    admin_password = "Password1234!"
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+}
